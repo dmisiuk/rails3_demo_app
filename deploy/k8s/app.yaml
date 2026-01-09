@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rails3-demo-app
+  namespace: rails3-demo-app-dmisiuk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rails3-demo-app
+  template:
+    metadata:
+      labels:
+        app: rails3-demo-app
+    spec:
+      imagePullSecrets:
+        - name: ghcr-creds
+      containers:
+        - name: rails3-demo-app
+          image: ghcr.io/dmisiuk/rails3_demo_app:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: HTTP_HOST
+              value: 0.0.0.0
+          resources:
+            requests:
+              cpu: 125m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rails3-demo-app
+  namespace: rails3-demo-app-dmisiuk
+spec:
+  selector:
+    app: rails3-demo-app
+  ports:
+    - port: 80
+      targetPort: 3000
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rails3-demo-app
+  namespace: rails3-demo-app-dmisiuk
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: rails3-demo-app.openfab.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rails3-demo-app
+                port:
+                  number: 80
+
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: rails3-demo-app-secrets
+  namespace: rails3-demo-app-dmisiuk
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: openbao-store
+    kind: ClusterSecretStore
+  target:
+    name: rails3-demo-app-secrets
+    creationPolicy: Owner
+  data: []
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ghcr-creds
+  namespace: rails3-demo-app-dmisiuk
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: eyAiYXV0aHMiOiB7IH0gfQ==
